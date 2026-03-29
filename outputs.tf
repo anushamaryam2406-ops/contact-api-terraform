@@ -1,7 +1,3 @@
-# ============================================================================
-# FILE: outputs.tf
-# Output values after deployment
-# ============================================================================
 
 output "table_name" {
   description = "Name of the DynamoDB table"
@@ -18,44 +14,66 @@ output "gsi_name" {
   value       = "status-timestamp-index"
 }
 
-output "lambda_role_arn" {
-  description = "ARN of the Lambda execution role"
-  value       = aws_iam_role.lambda_execution.arn
+output "api_endpoint" {
+  description = "API Gateway endpoint URL"
+  value       = aws_apigatewayv2_stage.default.invoke_url
 }
 
-output "lambda_role_name" {
-  description = "Name of the Lambda execution role"
-  value       = aws_iam_role.lambda_execution.name
+output "post_contact_url" {
+  description = "POST /contact endpoint"
+  value       = "${aws_apigatewayv2_stage.default.invoke_url}/contact"
 }
 
-output "log_group_name" {
-  description = "CloudWatch Log Group name"
-  value       = aws_cloudwatch_log_group.lambda_logs.name
+output "get_messages_url" {
+  description = "GET /messages endpoint"
+  value       = "${aws_apigatewayv2_stage.default.invoke_url}/messages"
 }
 
-# ============================================================================
-# CONNECTION INFO (For testing)
-# ============================================================================
-
-output "aws_region" {
-  description = "AWS region where resources are deployed"
-  value       = var.aws_region
+output "lambda_post_function" {
+  description = "POST Lambda function name"
+  value       = aws_lambda_function.post_contact.function_name
 }
 
-output "environment" {
-  description = "Environment name"
-  value       = var.environment
+output "lambda_get_function" {
+  description = "GET Lambda function name"
+  value       = aws_lambda_function.get_messages.function_name
 }
 
 # ============================================================================
-# QUERY EXAMPLES (For developers)
+# TESTING COMMANDS
 # ============================================================================
 
-output "query_examples" {
-  description = "Example queries for this table"
-  value = {
-    by_email = "aws dynamodb query --table-name ${aws_dynamodb_table.contact_messages.name} --key-condition-expression 'email = :email' --expression-attribute-values '{\":email\":{\"S\":\"user@example.com\"}}'"
-    
-    by_status = "aws dynamodb query --table-name ${aws_dynamodb_table.contact_messages.name} --index-name status-timestamp-index --key-condition-expression '#status = :status' --expression-attribute-names '{\"#status\":\"status\"}' --expression-attribute-values '{\":status\":{\"S\":\"new\"}}'"
-  }
+output "test_commands" {
+  description = "Commands to test the API"
+  value = <<-EOT
+  
+  ═══════════════════════════════════════════════════════════════
+  TEST YOUR API
+  ═══════════════════════════════════════════════════════════════
+  
+  1. SUBMIT CONTACT FORM (POST):
+  
+  curl -X POST ${aws_apigatewayv2_stage.default.invoke_url}/contact \
+    -H "Content-Type: application/json" \
+    -d '{
+      "name": "Anusha",
+      "email": "anusha@example.com",
+      "subject": "Test Message",
+      "message": "Testing my Contact API!"
+    }'
+  
+  2. GET ALL NEW MESSAGES:
+  
+  curl "${aws_apigatewayv2_stage.default.invoke_url}/messages?status=new"
+  
+  3. GET MESSAGES BY EMAIL:
+  
+  curl "${aws_apigatewayv2_stage.default.invoke_url}/messages?email=anusha@example.com"
+  
+  4. GET ALL MESSAGES:
+  
+  curl "${aws_apigatewayv2_stage.default.invoke_url}/messages"
+  
+  ═══════════════════════════════════════════════════════════════
+  EOT
 }

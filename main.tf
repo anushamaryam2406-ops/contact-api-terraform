@@ -174,3 +174,178 @@ resource "aws_cloudwatch_log_group" "lambda_logs" {
     Name = "${var.project_name}-logs"
   }
 }
+
+
+# ============================================================================
+# LAMBDA FUNCTION 1: POST /contact
+# ============================================================================
+
+# Package Lambda code Terraform: "I'll zip it for you!"
+data "archive_file" "post_contact" {
+  type        = "zip"
+  source_file = "${path.module}/lambda_post_contact.py"
+  output_path = "${path.module}/lambda_post_contact.zip"
+}
+
+resource "aws_lambda_function" "post_contact" {
+  filename         = data.archive_file.post_contact.output_path
+  function_name    = "${var.project_name}-post-${var.environment}"
+  role            = aws_iam_role.lambda_execution.arn
+  handler         = "lambda_post_contact.lambda_handler"
+  source_code_hash = data.archive_file.post_contact.output_base64sha256
+  runtime         = "python3.11"
+  timeout         = 10
+  
+  environment {
+    variables = {
+      TABLE_NAME = aws_dynamodb_table.contact_messages.name
+    }
+  }
+  
+  tags = {
+    Name = "${var.project_name}-post"
+  }
+}
+
+# CloudWatch Log Group for POST Lambda
+resource "aws_cloudwatch_log_group" "post_contact" {
+  name              = "/aws/lambda/${aws_lambda_function.post_contact.function_name}"
+  retention_in_days = var.log_retention_days
+}
+
+# ============================================================================
+# LAMBDA FUNCTION 2: GET /messages
+# ============================================================================
+
+data "archive_file" "get_messages" {
+  type        = "zip"
+  source_file = "${path.module}/lambda_get_messages.py"
+  output_path = "${path.module}/lambda_get_messages.zip"
+}
+
+resource "aws_lambda_function" "get_messages" {
+  filename         = data.archive_file.get_messages.output_path
+  function_name    = "${var.project_name}-get-${var.environment}"
+  role            = aws_iam_role.lambda_execution.arn
+  handler         = "lambda_get_messages.lambda_handler"
+  source_code_hash = data.archive_file.get_messages.output_base64sha256
+  runtime         = "python3.11"
+  timeout         = 10
+  
+  environment {
+    variables = {
+      TABLE_NAME = aws_dynamodb_table.contact_messages.name
+    }
+  }
+  
+  tags = {
+    Name = "${var.project_name}-get"
+  }
+}
+
+resource "aws_cloudwatch_log_group" "get_messages" {
+  name              = "/aws/lambda/${aws_lambda_function.get_messages.function_name}"
+  retention_in_days = var.log_retention_days
+}
+
+# ============================================================================
+# API GATEWAY (HTTP API) - POST /contact → Lambda POST function
+#- GET /messages → Lambda GET function
+# ============================================================================
+
+resource "aws_apigatewayv2_api" "contact_api" {
+  name          = "${var.project_name}-api-${var.environment}"
+  protocol_type = "HTTP"
+  
+  cors_configuration {
+    allow_origins = ["*"]
+    allow_methods = ["GET", "POST", "OPTIONS"]
+    allow_headers = ["content-type"]
+  }
+  
+  tags = {
+    Name = "${var.project_name}-api"
+  }
+}
+
+# API Gateway Stage
+resource "aws_apigatewayv2_stage" "default" {
+  api_id      = aws_apigatewayv2_api.contact_api.id
+  name        = var.environment
+  auto_deploy = true
+  
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.api_gateway.arn
+    format = jsonencode({
+      requestId      = "$context.requestId"
+      ip             = "$context.identity.sourceIp"
+      requestTime    = "$context.requestTime"
+      httpMethod     = "$context.httpMethod"
+      routeKey       = "$context.routeKey"
+      status         = "$context.status"
+      protocol       = "$context.protocol"
+      responseLength = "$context.responseLength"
+    })
+  }
+  
+  tags = {
+    Name = "${var.project_name}-stage"
+  }
+}
+
+resource "aws_cloudwatch_log_group" "api_gateway" {
+  name              = "/aws/apigateway/${var.project_name}-${var.environment}"
+  retention_in_days = var.log_retention_days
+}
+
+# ============================================================================
+# API ROUTES & INTEGRATIONS
+# ============================================================================
+
+# POST /contact Integration
+resource "aws_apigatewayv2_integration" "post_contact" {
+  api_id           = aws_apigatewayv2_api.contact_api.id
+  integration_type = "AWS_PROXY"
+  integration_uri  = aws_lambda_function.post_contact.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "post_contact" {
+  api_id    = aws_apigatewayv2_api.contact_api.id
+  route_key = "POST /contact"
+  target    = "integrations/${aws_apigatewayv2_integration.post_contact.id}"
+}
+
+# GET /messages Integration
+resource "aws_apigatewayv2_integration" "get_messages" {
+  api_id           = aws_apigatewayv2_api.contact_api.id
+  integration_type = "AWS_PROXY"
+  integration_uri  = aws_lambda_function.get_messages.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "get_messages" {
+  api_id    = aws_apigatewayv2_api.contact_api.id
+  route_key = "GET /messages"
+  target    = "integrations/${aws_apigatewayv2_integration.get_messages.id}"
+}
+
+# ============================================================================
+# LAMBDA PERMISSIONS (Allow API Gateway to invoke)
+# ============================================================================
+
+resource "aws_lambda_permission" "post_contact" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.post_contact.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.contact_api.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "get_messages" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.get_messages.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.contact_api.execution_arn}/*/*"
+}
