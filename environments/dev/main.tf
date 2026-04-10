@@ -1,8 +1,9 @@
 # PROJECT: Contact API - Complete Infrastructure
-# Phase 3 - Serverless Contact/Feedback Backend
+# Phase 4 - CI/CD + Environment Separation
+# Environment: DEV
 
 # ============================================================================
-# FILE: main.tf
+# FILE: environments/dev/main.tf
 # Complete DynamoDB table with GSI for Contact API
 # ============================================================================
 
@@ -14,14 +15,6 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.37"
     }
-  }
-  
-  backend "s3" {
-    bucket         = "anusha-tf-state-2024"
-    key            = "contact-api/terraform.tfstate"
-    region         = "ap-south-1"
-    encrypt        = true
-    dynamodb_table = "terraform-state-locks"
   }
 }
 
@@ -106,7 +99,7 @@ resource "aws_dynamodb_table" "contact_messages" {
 }
 
 # ============================================================================
-# IAM ROLE FOR LAMBDA (Future use)
+# IAM ROLE FOR LAMBDA
 # ============================================================================
 
 resource "aws_iam_role" "lambda_execution" {
@@ -175,15 +168,18 @@ resource "aws_cloudwatch_log_group" "lambda_logs" {
   }
 }
 
-
 # ============================================================================
 # LAMBDA FUNCTION 1: POST /contact
 # ============================================================================
 
-# Package Lambda code Terraform: "I'll zip it for you!"
+# ✅ CHANGE 2: Updated source_file path to point to shared lambda/ folder
+# WHY: Lambda files moved from root to lambda/ folder
+# Path explanation: ${path.module} = environments/dev/
+#                  ../../ = go up to project root
+#                  lambda/post_contact.py = access lambda folder
 data "archive_file" "post_contact" {
   type        = "zip"
-  source_file = "${path.module}/lambda_post_contact.py"
+  source_file = "${path.module}/../../lambda/post_contact.py"    # ← CHANGED
   output_path = "${path.module}/lambda_post_contact.zip"
 }
 
@@ -191,7 +187,11 @@ resource "aws_lambda_function" "post_contact" {
   filename         = data.archive_file.post_contact.output_path
   function_name    = "${var.project_name}-post-${var.environment}"
   role            = aws_iam_role.lambda_execution.arn
-  handler         = "lambda_post_contact.lambda_handler"
+  
+  # ✅ CHANGE 3: Updated handler to match new filename (no lambda_ prefix)
+  # WHY: File renamed from lambda_post_contact.py to post_contact.py
+  handler         = "post_contact.lambda_handler"    # ← CHANGED
+  
   source_code_hash = data.archive_file.post_contact.output_base64sha256
   runtime         = "python3.11"
   timeout         = 10
@@ -217,9 +217,10 @@ resource "aws_cloudwatch_log_group" "post_contact" {
 # LAMBDA FUNCTION 2: GET /messages
 # ============================================================================
 
+# ✅ CHANGE 4: Updated source_file path to point to shared lambda/ folder
 data "archive_file" "get_messages" {
   type        = "zip"
-  source_file = "${path.module}/lambda_get_messages.py"
+  source_file = "${path.module}/../../lambda/get_messages.py"    # ← CHANGED
   output_path = "${path.module}/lambda_get_messages.zip"
 }
 
@@ -227,7 +228,10 @@ resource "aws_lambda_function" "get_messages" {
   filename         = data.archive_file.get_messages.output_path
   function_name    = "${var.project_name}-get-${var.environment}"
   role            = aws_iam_role.lambda_execution.arn
-  handler         = "lambda_get_messages.lambda_handler"
+  
+  # ✅ CHANGE 5: Updated handler to match new filename
+  handler         = "get_messages.lambda_handler"    # ← CHANGED
+  
   source_code_hash = data.archive_file.get_messages.output_base64sha256
   runtime         = "python3.11"
   timeout         = 10
@@ -249,8 +253,7 @@ resource "aws_cloudwatch_log_group" "get_messages" {
 }
 
 # ============================================================================
-# API GATEWAY (HTTP API) - POST /contact → Lambda POST function
-#- GET /messages → Lambda GET function
+# API GATEWAY (HTTP API)
 # ============================================================================
 
 resource "aws_apigatewayv2_api" "contact_api" {
