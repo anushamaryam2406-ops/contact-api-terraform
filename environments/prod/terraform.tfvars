@@ -26,6 +26,7 @@ additional_tags = {
   CostCenter  = "Learning"
   Repository  = "github.com/anusha/contact-api"
 }
+alert_email = "anushamaryam2406@gmail.com"
 
 # Production-specific tuning
 # billing_mode = "PROVISIONED"  # Optional: if traffic is predictable

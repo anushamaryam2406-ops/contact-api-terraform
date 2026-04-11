@@ -352,3 +352,94 @@ resource "aws_lambda_permission" "get_messages" {
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.contact_api.execution_arn}/*/*"
 }
+
+# ============================================================================
+# SNS TOPIC (The messenger that sends you emails)
+# ============================================================================
+
+resource "aws_sns_topic" "alerts" {
+  name = "${var.project_name}-alerts-${var.environment}"
+
+  tags = {
+    Name = "${var.project_name}-alerts"
+  }
+}
+
+# Your email subscription
+resource "aws_sns_topic_subscription" "email" {
+  topic_arn = aws_sns_topic.alerts.arn
+  protocol  = "email"
+  endpoint  = var.alert_email
+}
+
+# ============================================================================
+# CLOUDWATCH ALARMS (PROD = stricter than DEV!)
+# ============================================================================
+
+# ALARM 1: POST Lambda errors
+resource "aws_cloudwatch_metric_alarm" "post_contact_errors" {
+  alarm_name          = "${var.project_name}-post-errors-${var.environment}"
+  alarm_description   = "PROD ALERT: POST /contact Lambda has errors"
+
+  namespace           = "AWS/Lambda"
+  metric_name         = "Errors"
+  dimensions = {
+    FunctionName = aws_lambda_function.post_contact.function_name
+  }
+
+  statistic           = "Sum"
+  period              = 60        # ← 1 minute (faster than dev's 5 mins!)
+  evaluation_periods  = 1
+  threshold           = 1         # ← 1 error (stricter than dev's 2!)
+  comparison_operator = "GreaterThanThreshold"
+
+  alarm_actions = [aws_sns_topic.alerts.arn]
+  ok_actions    = [aws_sns_topic.alerts.arn]
+
+  treat_missing_data = "notBreaching"
+}
+
+# ALARM 2: GET Lambda errors
+resource "aws_cloudwatch_metric_alarm" "get_messages_errors" {
+  alarm_name          = "${var.project_name}-get-errors-${var.environment}"
+  alarm_description   = "PROD ALERT: GET /messages Lambda has errors"
+
+  namespace           = "AWS/Lambda"
+  metric_name         = "Errors"
+  dimensions = {
+    FunctionName = aws_lambda_function.get_messages.function_name
+  }
+
+  statistic           = "Sum"
+  period              = 60        # ← 1 minute
+  evaluation_periods  = 1
+  threshold           = 1         # ← 1 error
+  comparison_operator = "GreaterThanThreshold"
+
+  alarm_actions = [aws_sns_topic.alerts.arn]
+  ok_actions    = [aws_sns_topic.alerts.arn]
+
+  treat_missing_data  = "notBreaching"
+}
+
+# ALARM 3: High duration
+resource "aws_cloudwatch_metric_alarm" "post_contact_duration" {
+  alarm_name          = "${var.project_name}-post-duration-${var.environment}"
+  alarm_description   = "PROD ALERT: POST Lambda taking too long"
+
+  namespace           = "AWS/Lambda"
+  metric_name         = "Duration"
+  dimensions = {
+    FunctionName = aws_lambda_function.post_contact.function_name
+  }
+
+  statistic           = "Average"
+  period              = 60        # ← 1 minute
+  evaluation_periods  = 1
+  threshold           = 3000      # ← 3 seconds (stricter than dev's 5s!)
+  comparison_operator = "GreaterThanThreshold"
+
+  alarm_actions = [aws_sns_topic.alerts.arn]
+
+  treat_missing_data  = "notBreaching"
+}
