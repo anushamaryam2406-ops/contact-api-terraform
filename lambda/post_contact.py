@@ -6,7 +6,7 @@ Handles contact form submissions and saves to DynamoDB
 import json
 import boto3
 import os
-import logging  # ← NEW: proper logging library
+import logging  # ← NEW: proper logging library added
 from datetime import datetime
 from decimal import Decimal
 
