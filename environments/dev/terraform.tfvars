@@ -26,7 +26,7 @@ additional_tags = {
   CostCenter  = "Learning"
   Repository  = "github.com/anusha/contact-api"
 }
-
+alert_email = "your-real-email@gmail.com"
 # ============================================================================
 # PRODUCTION SETTINGS (uncomment when deploying to production)
 # ============================================================================

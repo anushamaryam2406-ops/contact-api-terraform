@@ -85,3 +85,7 @@ variable "additional_tags" {
   type        = map(string)
   default     = {}
 }
+variable "alert_email" {
+  description = "Email address to receive CloudWatch alarm notifications"
+  type        = string
+}

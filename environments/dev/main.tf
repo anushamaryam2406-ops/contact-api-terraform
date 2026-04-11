@@ -352,3 +352,109 @@ resource "aws_lambda_permission" "get_messages" {
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.contact_api.execution_arn}/*/*"
 }
+
+# ============================================================================
+# SNS TOPIC (The messenger that sends you emails)
+# ============================================================================
+
+resource "aws_sns_topic" "alerts" {
+  name = "${var.project_name}-alerts-${var.environment}"
+
+  tags = {
+    Name = "${var.project_name}-alerts"
+  }
+}
+
+# Your email subscription
+resource "aws_sns_topic_subscription" "email" {
+  topic_arn = aws_sns_topic.alerts.arn
+  protocol  = "email"
+  endpoint  = var.alert_email  
+}
+
+# ============================================================================
+# CLOUDWATCH ALARMS
+# ============================================================================
+
+# ALARM 1: POST Lambda errors
+resource "aws_cloudwatch_metric_alarm" "post_contact_errors" {
+  alarm_name          = "${var.project_name}-post-errors-${var.environment}"
+  alarm_description   = "Alert when POST /contact Lambda has errors"
+
+  # What to watch
+  namespace           = "AWS/Lambda"
+  metric_name         = "Errors"
+  dimensions = {
+    FunctionName = aws_lambda_function.post_contact.function_name
+  }
+
+  # When to trigger
+  statistic           = "Sum"
+  period              = 300   # 5 minutes
+  evaluation_periods  = 1
+  threshold           = 2     # more than 2 errors in 5 minutes → alarm!
+  comparison_operator = "GreaterThanThreshold"
+
+  # What to do
+  alarm_actions = [aws_sns_topic.alerts.arn]
+  ok_actions    = [aws_sns_topic.alerts.arn]  # also notify when it recovers
+
+  treat_missing_data = "notBreaching"
+
+  tags = {
+    Name = "${var.project_name}-post-errors"
+  }
+}
+
+# ALARM 2: GET Lambda errors
+resource "aws_cloudwatch_metric_alarm" "get_messages_errors" {
+  alarm_name          = "${var.project_name}-get-errors-${var.environment}"
+  alarm_description   = "Alert when GET /messages Lambda has errors"
+
+  namespace           = "AWS/Lambda"
+  metric_name         = "Errors"
+  dimensions = {
+    FunctionName = aws_lambda_function.get_messages.function_name
+  }
+
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 2
+  comparison_operator = "GreaterThanThreshold"
+
+  alarm_actions = [aws_sns_topic.alerts.arn]
+  ok_actions    = [aws_sns_topic.alerts.arn]
+
+  treat_missing_data  = "notBreaching"
+
+  tags = {
+    Name = "${var.project_name}-get-errors"
+  }
+}
+
+# ALARM 3: High duration (Lambda running too slow)
+resource "aws_cloudwatch_metric_alarm" "post_contact_duration" {
+  alarm_name          = "${var.project_name}-post-duration-${var.environment}"
+  alarm_description   = "Alert when POST Lambda takes longer than 5 seconds"
+
+  namespace           = "AWS/Lambda"
+  metric_name         = "Duration"
+  dimensions = {
+    FunctionName = aws_lambda_function.post_contact.function_name
+  }
+
+  statistic           = "Average"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 5000  # 5000ms = 5 seconds
+  comparison_operator = "GreaterThanThreshold"
+
+  alarm_actions = [aws_sns_topic.alerts.arn]
+
+  treat_missing_data  = "notBreaching"
+
+  tags = {
+    Name = "${var.project_name}-post-duration"
+  }
+}
