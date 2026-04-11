@@ -1,9 +1,4 @@
-output "api_endpoint" {
-  description = "API Gateway endpoint URL"
-  value       = aws_apigatewayv2_stage.default.invoke_url
-}
-
-output "api_id" {
-  description = "API Gateway ID"
-  value       = aws_apigatewayv2_api.contact_api.id
+output "sns_topic_arn" {
+  description = "SNS topic ARN for alerts"
+  value       = aws_sns_topic.alerts.arn
 }
