@@ -28,7 +28,7 @@ provider "aws" {
 }
 
 # ============================================================================
-# IAM ROLE (stays here — shared across modules)
+# IAM ROLE (stays here  shared across modules)
 # ============================================================================
 resource "aws_iam_role" "lambda_execution" {
   name = "${var.project_name}-lambda-role-${var.environment}"
@@ -92,7 +92,7 @@ module "lambda" {
 
   project_name       = var.project_name
   environment        = var.environment
-  table_name         = module.dynamodb.table_name  # ← from dynamodb module!
+  table_name         = module.dynamodb.table_name  #  from dynamodb module!
   lambda_role_arn    = aws_iam_role.lambda_execution.arn
   log_retention_days = var.log_retention_days
   lambda_source_path = "${path.module}/../../lambda"
@@ -106,10 +106,10 @@ module "api_gateway" {
 
   project_name               = var.project_name
   environment                = var.environment
-  post_contact_invoke_arn    = module.lambda.post_contact_arn    # ← from lambda module!
-  get_messages_invoke_arn    = module.lambda.get_messages_arn    # ← from lambda module!
-  post_contact_function_name = module.lambda.post_contact_name   # ← from lambda module!
-  get_messages_function_name = module.lambda.get_messages_name   # ← from lambda module!
+  post_contact_invoke_arn    = module.lambda.post_contact_arn    #  from lambda module!
+  get_messages_invoke_arn    = module.lambda.get_messages_arn    #  from lambda module!
+  post_contact_function_name = module.lambda.post_contact_name   #  from lambda module!
+  get_messages_function_name = module.lambda.get_messages_name   #  from lambda module!
   log_retention_days         = var.log_retention_days
 }
 
@@ -121,8 +121,8 @@ module "monitoring" {
 
   project_name               = var.project_name
   environment                = var.environment
-  post_contact_function_name = module.lambda.post_contact_name  # ← from lambda module!
-  get_messages_function_name = module.lambda.get_messages_name  # ← from lambda module!
+  post_contact_function_name = module.lambda.post_contact_name  #  from lambda module!
+  get_messages_function_name = module.lambda.get_messages_name  #  from lambda module!
   alert_email                = var.alert_email
   error_threshold            = 1      # dev = relaxed
   alarm_period               = 60   # dev = 5 minutes
