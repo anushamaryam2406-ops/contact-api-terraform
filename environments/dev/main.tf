@@ -401,9 +401,7 @@ resource "aws_cloudwatch_metric_alarm" "post_contact_errors" {
 
   treat_missing_data = "notBreaching"
 
-  tags = {
-    Name = "${var.project_name}-post-errors"
-  }
+ 
 }
 
 # ALARM 2: GET Lambda errors
@@ -428,9 +426,7 @@ resource "aws_cloudwatch_metric_alarm" "get_messages_errors" {
 
   treat_missing_data  = "notBreaching"
 
-  tags = {
-    Name = "${var.project_name}-get-errors"
-  }
+
 }
 
 # ALARM 3: High duration (Lambda running too slow)
@@ -454,7 +450,5 @@ resource "aws_cloudwatch_metric_alarm" "post_contact_duration" {
 
   treat_missing_data  = "notBreaching"
 
-  tags = {
-    Name = "${var.project_name}-post-duration"
-  }
+
 }
