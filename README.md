@@ -57,6 +57,7 @@ Lambda: post_contact        Lambda: get_messages
 - DEV deploys first — PROD only deploys if DEV passes
 - Terraform state stored remotely in S3 with DynamoDB locking
 
+![Architecture](contact_api_architecture.svg)
 ---
 
 ## Tech Stack
